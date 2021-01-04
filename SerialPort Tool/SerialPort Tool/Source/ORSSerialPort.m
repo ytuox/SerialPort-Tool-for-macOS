@@ -76,6 +76,12 @@ static __strong NSMutableArray *allSerialPorts;
 @property (nonatomic, readwrite) BOOL DSR;
 @property (nonatomic, readwrite) BOOL DCD;
 
+// full pack info
+@property (nonatomic, assign) NSInteger uartflag;
+@property (nonatomic, strong) NSMutableData *tempBuffer;
+@property (nonatomic, strong) NSMutableData *fullBuffer;
+@property (assign,nonatomic) NSTimer *timer;
+
 #if OS_OBJECT_USE_OBJC
 @property (nonatomic, strong) dispatch_source_t readPollSource;
 @property (nonatomic, strong) dispatch_source_t pinPollTimer;
@@ -178,8 +184,8 @@ static __strong NSMutableArray *allSerialPorts;
 		self.requestsQueue = [NSMutableArray array];
 		self.baudRate = @B9600;
 		self.allowsNonStandardBaudRates = NO;
-		self.numberOfStopBits = 0;// 【0-1】==【1-2】停止位
-        self.numberOfDataBits = 0;// 【0-3】==【8-5】数据位
+		self.numberOfStopBits = 1;
+        self.numberOfDataBits = 8;
 		self.parity = ORSSerialPortParityNone;
 		self.shouldEchoReceivedData = NO;
 		self.usesRTSCTSFlowControl = NO;
@@ -187,6 +193,9 @@ static __strong NSMutableArray *allSerialPorts;
 		self.usesDCDOutputFlowControl = NO;
 		self.RTS = NO;
 		self.DTR = NO;
+        self.uartflag = 0;
+        self.tempBuffer = [[NSMutableData alloc] initWithCapacity:1024];
+        self.fullBuffer = [[NSMutableData alloc] initWithCapacity:1024];
 	}
 	
 	[[self class] addSerialPort:self];
@@ -292,12 +301,12 @@ static __strong NSMutableArray *allSerialPorts;
 		if (!self.isOpen) return;
 		
 		// Data is available
-		char buf[1024];
+		char buf[1];
 		long lengthRead = read(localPortFD, buf, sizeof(buf));
 		if (lengthRead>0)
 		{
 			NSData *readData = [NSData dataWithBytes:buf length:lengthRead];
-			if (readData != nil) [self receiveData:readData];
+			if (readData != nil) [self receivefullPackData:readData];
 		}
 	});
 	dispatch_source_set_cancel_handler(readPollSource, ^{ [self reallyClosePort]; });
@@ -561,48 +570,57 @@ static __strong NSMutableArray *allSerialPorts;
 	[self sendNextRequest];
 }
 
+-(void)startTimer{
+    self.uartflag = 1;
+    double dbBR = [self.baudRate doubleValue];
+//    接收当前串口配置，传输1个字节需要的时间
+    double timeout = 1.0 * (self.numberOfStopBits + 1.0 + self.numberOfDataBits + self.parity) * (1000.0 / dbBR) / 108.0;
+//    NSLog(@"收到数据timeout: %f",timeout);
+    _timer = [NSTimer scheduledTimerWithTimeInterval:timeout target:self selector:@selector(cacheRecvData) userInfo:nil repeats:YES];
+}
+
+-(void)stopTimer{
+    [_timer invalidate];
+    _timer = nil;
+}
+
+-(void)cacheRecvData{
+    dispatch_async(dispatch_get_main_queue(), ^{
+        
+        if (self.tempBuffer.length != 0) {
+//            把tempBuffer追加到fullBuffer，合并成完成一包
+            [self.fullBuffer appendData:self.tempBuffer];
+            self.tempBuffer = [NSMutableData data]; // 清空tempBuffer
+    }
+    else {
+        self.uartflag = 0;
+        [self stopTimer];
+        [self receiveData:self.fullBuffer];
+        }
+    });
+}
+
 #pragma mark Port Read/Write
 
+- (void)receivefullPackData:(NSData *)data;
+{
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (self.uartflag == 0) {
+            [self startTimer];
+        }
+//        把接收到的字节追加到tempBuffer
+        [self.tempBuffer appendData:data];
+    });
+    
+}
 - (void)receiveData:(NSData *)data;
 {
-	dispatch_async(dispatch_get_main_queue(), ^{
-		if ([self.delegate respondsToSelector:@selector(serialPort:didReceiveData:)])
-		{
-			[self.delegate serialPort:self didReceiveData:data];
-		}
-	});
-	
-	dispatch_async(self.requestHandlingQueue, ^{
-		const void *bytes = [data bytes];
-		for (NSUInteger i=0; i<[data length]; i++) {
-			
-			NSData *byte = [NSData dataWithBytesNoCopy:(void *)(bytes+i) length:1 freeWhenDone:NO];
-			
-			// Check for packets we're listening for
-			for (ORSSerialPacketDescriptor *descriptor in self.packetDescriptorsAndBuffers)
-			{
-				// Append byte to buffer
-				ORSSerialBuffer *buffer = [self.packetDescriptorsAndBuffers objectForKey:descriptor];
-				[buffer appendData:byte];
-				
-				// Check for complete packet
-				NSData *completePacket = [descriptor packetMatchingAtEndOfBuffer:buffer.data];
-				if (![completePacket length]) continue;
-				
-				// Complete packet received, so notify delegate then clear buffer
-				dispatch_async(dispatch_get_main_queue(), ^{
-					if ([self.delegate respondsToSelector:@selector(serialPort:didReceivePacket:matchingDescriptor:)])
-					{
-						[self.delegate serialPort:self didReceivePacket:completePacket matchingDescriptor:descriptor];
-					}
-				});
-				[buffer clearBuffer];
-			}
-			
-			// Also check for response to pending request
-			[self checkResponseToPendingRequestAndContinueIfValidWithReceivedByte:byte];
-		}
-	});
+//    拼成的完整一包数据，显示到UI界面
+        if ([self.delegate respondsToSelector:@selector(serialPort:didReceiveData:)])
+            {
+                [self.delegate serialPort:self didReceiveData:self.fullBuffer];
+            }
+        self.fullBuffer = [NSMutableData data]; // 清空fullBuffer
 }
 
 #pragma mark Port Propeties Methods
@@ -621,24 +639,23 @@ static __strong NSMutableArray *allSerialPorts;
 	
 	// Set 8 data bits
 	options.c_cflag &= ~CSIZE;
-	options.c_cflag |= CS8;
     switch (self.numberOfDataBits) {
-        case 3:
+        case 5:
             options.c_cflag |= CS5;
             break;
-        case 2:
-            options.c_cflag |= CS6;
+        case 6:
+            options.c_cflag |= CS5;
             break;
-        case 1:
+        case 7:
             options.c_cflag |= CS7;
             break;
-        case 0:
+        case 8:
             options.c_cflag |= CS8;
             break;
         default:
             break;
     }
-	
+    
 	// Set parity
 	switch (self.parity) {
 		case ORSSerialPortParityNone:
@@ -655,9 +672,8 @@ static __strong NSMutableArray *allSerialPorts;
 		default:
 			break;
 	}
-    
-    
-	options.c_cflag = [self numberOfStopBits] > 0 ? options.c_cflag | CSTOPB : options.c_cflag & ~CSTOPB; // number of stop bits
+	
+    options.c_cflag = [self numberOfStopBits] > 1 ? options.c_cflag | CSTOPB : options.c_cflag & ~CSTOPB; // number of stop bits
 	options.c_lflag = [self shouldEchoReceivedData] ? options.c_lflag | ECHO : options.c_lflag & ~ECHO; // echo
 	options.c_cflag = [self usesRTSCTSFlowControl] ? options.c_cflag | CRTSCTS : options.c_cflag & ~CRTSCTS; // RTS/CTS Flow Control
 	options.c_cflag = [self usesDTRDSRFlowControl] ? options.c_cflag | (CDTR_IFLOW | CDSR_OFLOW) : options.c_cflag & ~(CDTR_IFLOW | CDSR_OFLOW); // DTR/DSR Flow Control
@@ -864,6 +880,15 @@ static __strong NSMutableArray *allSerialPorts;
 	}
 }
 
+- (void)setNumberOfDataBits:(NSUInteger)num
+{
+    if (num != _numberOfDataBits)
+    {
+        _numberOfDataBits = num;
+        [self setPortOptions];
+    }
+}
+
 - (void)setShouldEchoReceivedData:(BOOL)flag
 {
 	if (flag != _shouldEchoReceivedData)
@@ -871,15 +896,6 @@ static __strong NSMutableArray *allSerialPorts;
 		_shouldEchoReceivedData = flag;
 		[self setPortOptions];
 	}
-}
-
--(void)setNumberOfDataBits:(NSUInteger)numberOfDataBits{
-    
-    if(numberOfDataBits != _numberOfDataBits){
-        _numberOfDataBits = numberOfDataBits;
-        
-        [self setPortOptions];
-    }
 }
 
 - (void)setParity:(ORSSerialPortParity)aParity

@@ -362,13 +362,13 @@
                                                 <font key="font" metaFont="controlContent"/>
                                                 <menu key="menu" id="Lei-uT-pvZ">
                                                     <items>
-                                                        <menuItem title="1" state="on" id="VgK-Km-vlM"/>
-                                                        <menuItem title="2" id="1uL-d5-fds"/>
+                                                        <menuItem title="1" state="on" tag="1" id="VgK-Km-vlM"/>
+                                                        <menuItem title="2" tag="2" id="1uL-d5-fds"/>
                                                     </items>
                                                 </menu>
                                             </popUpButtonCell>
                                             <connections>
-                                                <binding destination="XfG-lQ-9wD" name="selectedIndex" keyPath="serialPort.numberOfStopBits" id="kf7-P1-GAu"/>
+                                                <binding destination="XfG-lQ-9wD" name="selectedTag" keyPath="serialPort.numberOfStopBits" id="kf7-P1-GAu"/>
                                             </connections>
                                         </popUpButton>
                                         <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="CN3-yn-HXj">
@@ -399,15 +399,15 @@
                                                 <font key="font" metaFont="controlContent"/>
                                                 <menu key="menu" id="3rN-WG-fOs">
                                                     <items>
-                                                        <menuItem title="8" state="on" id="kIu-Lc-fAG"/>
-                                                        <menuItem title="7" id="otz-O0-auj"/>
-                                                        <menuItem title="6" id="MA3-LY-qCg"/>
-                                                        <menuItem title="5" id="PKn-Ii-RUt"/>
+                                                        <menuItem title="8" state="on" tag="8" id="kIu-Lc-fAG"/>
+                                                        <menuItem title="7" tag="7" id="otz-O0-auj"/>
+                                                        <menuItem title="6" tag="6" id="MA3-LY-qCg"/>
+                                                        <menuItem title="5" tag="5" id="PKn-Ii-RUt"/>
                                                     </items>
                                                 </menu>
                                             </popUpButtonCell>
                                             <connections>
-                                                <binding destination="XfG-lQ-9wD" name="selectedIndex" keyPath="serialPort.numberOfDataBits" id="mYd-eK-g0z"/>
+                                                <binding destination="XfG-lQ-9wD" name="selectedTag" keyPath="serialPort.numberOfDataBits" id="mYd-eK-g0z"/>
                                             </connections>
                                         </popUpButton>
                                         <popUpButton verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="nl1-Vu-gZd">

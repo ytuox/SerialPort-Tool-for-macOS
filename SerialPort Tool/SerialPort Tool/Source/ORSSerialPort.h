@@ -463,12 +463,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL allowsNonStandardBaudRates;
 
 /**
- *  The number of stop bits. Values other than 0 or 1 are invalid.
+ *  The number of stop bits. Values other than 1 or 2 are invalid.
  */
 @property (nonatomic) NSUInteger numberOfStopBits;
 
 /**
- *  The number of data bits. Possible values are: 3, 2, 1, or 0. means --> (5bit,6bit,7bit,8bit)
+ *  The number of data bits. Values other than 5, 6, 7, or 8 are ignored.
  */
 @property (nonatomic) NSUInteger numberOfDataBits;
 

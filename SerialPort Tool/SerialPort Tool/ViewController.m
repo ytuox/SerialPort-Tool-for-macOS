@@ -393,7 +393,7 @@
     }
 
     if(self.isOnlyDisplayRxData){
-        string = [NSString stringWithFormat:@"[%@]%@\n",[self get2DateTime],string];
+        string = [NSString stringWithFormat:@"[%@]%@",[self get2DateTime],string];
     }else{
         string = [NSString stringWithFormat:@"%@",string];
     }
@@ -561,19 +561,9 @@
 
 - (NSString *)get2DateTime
 {
-//    char dateTime[15];
-//    time_t t;
-//    struct tm tm;
-//    t = time( NULL );
-//    memcpy(&tm, localtime(&t), sizeof(struct tm));
-//    sprintf(dateTime, "%02d:%02d:%02d",
-//            tm.tm_hour, tm.tm_min,tm.tm_sec);
-//    return [[NSString alloc] initWithCString:dateTime encoding:NSASCIIStringEncoding];
-    
     NSString* date;
     NSDateFormatter * formatter = [[NSDateFormatter alloc ] init];
-    //[formatter setDateFormat:@"YYYY.MM.dd.hh.mm.ss"];
-    [formatter setDateFormat:@"hh:mm:ss.SSS"];
+    [formatter setDateFormat:@"YYYY-MM-dd HH:mm:ss:SSS"];
     date = [formatter stringFromDate:[NSDate date]];
     NSString * timeNow = [[NSString alloc] initWithFormat:@"%@", date];
     return timeNow;
